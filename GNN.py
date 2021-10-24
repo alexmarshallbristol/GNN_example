@@ -1,4 +1,8 @@
-print('\n')
+'''
+    
+    Simple example of node classification using a simple toy model of a displaced vertex.
+
+'''
 import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
@@ -13,9 +17,9 @@ from spektral.data import Dataset, DisjointLoader, Graph
 from spektral.layers import GCSConv
 from spektral.transforms.normalize_adj import NormalizeAdj
 
-from generator import generate_VELO_dataset
+from generator import generate_dataset
 
-class VELO_dataset(Dataset):
+class getDataset(Dataset):
 
     def __init__(self, n_samples, plotting=False, n_min=10, n_max=25, **kwargs):
         self.n_samples = n_samples
@@ -28,7 +32,7 @@ class VELO_dataset(Dataset):
         def make_graph():
             n = np.random.randint(self.n_min, self.n_max)
 
-            x, y, _bin = generate_VELO_dataset(n)
+            x, y, _bin = generate_dataset(n)
 
             a = np.ones((np.shape(y)[0],np.shape(y)[0])).astype('int')
             a = sp.csr_matrix(a)
@@ -39,8 +43,6 @@ class VELO_dataset(Dataset):
                 return Graph(x=x, a=a, y=y)
 
         return [make_graph() for _ in range(self.n_samples)]
-
-dataset = VELO_dataset(2500, transforms=NormalizeAdj())
 
 class MyFirstGNN(Model):
 
@@ -59,14 +61,6 @@ class MyFirstGNN(Model):
 
         return out
 
-optimizer = Adam(lr=1e-2)
-loss_fn = SparseCategoricalCrossentropy()
-model = MyFirstGNN(32, 2) # 2 categories if SparseCategoricalCrossentropy
-model.compile()
-
-loader = DisjointLoader(dataset, batch_size=50, node_level=True)
-
-
 @tf.function(experimental_relax_shapes=True)
 def train(inputs, target):
     with tf.GradientTape(persistent=True) as tape:
@@ -76,7 +70,6 @@ def train(inputs, target):
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return loss
 
-
 @tf.function(experimental_relax_shapes=True)
 def query(inputs, target):
     with tf.GradientTape(persistent=True) as tape:
@@ -85,10 +78,21 @@ def query(inputs, target):
     return predictions, target
 
 
-save_idx = 5000
+# Create the network
+optimizer = Adam(lr=1e-2)
+loss_fn = SparseCategoricalCrossentropy()
+model = MyFirstGNN(32, 2) # 2 categories if SparseCategoricalCrossentropy
+model.compile()
 
+# Create the dataset
+dataset = getDataset(2500, transforms=NormalizeAdj())
+loader = DisjointLoader(dataset, batch_size=50, node_level=True)
+
+
+save_idx = 5000
 losses = np.empty(0)
 
+# Enter training loop
 for idx, batch in enumerate(loader):
 
     A = train(*batch)
@@ -96,6 +100,7 @@ for idx, batch in enumerate(loader):
 
     if idx % 500 == 0: print(idx)
 
+    # Saving...
     if idx % save_idx == 0:
 
         print('Saving...')
@@ -104,6 +109,8 @@ for idx, batch in enumerate(loader):
         if idx == 0: continue
 
         plt.plot(losses)
+        plt.xlabel('step')
+        plt.ylabel('loss')
         plt.savefig('loss')
         plt.close('all')
 
@@ -112,7 +119,7 @@ for idx, batch in enumerate(loader):
         nTests = 6
         plt.figure(figsize=(16,nTests*4))
 
-        dataset_plotting = VELO_dataset(nTests, plotting=True, transforms=NormalizeAdj())
+        dataset_plotting = getDataset(nTests, plotting=True, transforms=NormalizeAdj())
         loader_plotting = DisjointLoader(dataset_plotting, batch_size=1)
 
         for jdx, plotBatch in enumerate(loader_plotting):
@@ -124,7 +131,6 @@ for idx, batch in enumerate(loader):
 
             predictions = predictions.numpy()[:,1]
             plotting = plotting.numpy()[0]
-
 
             points = plotting[0]
             points_at_layers = plotting[1]
@@ -171,6 +177,5 @@ for idx, batch in enumerate(loader):
             plt.axvline(x=7, c='k',alpha=1)
             plt.axvline(x=9, c='k',alpha=1)
 
-        plt.savefig('examples_%d'%idx,bbox_inches='tight')
+        plt.savefig('tests_%d'%idx,bbox_inches='tight')
         plt.close('all')
-        quit()

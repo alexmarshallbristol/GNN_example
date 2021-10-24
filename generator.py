@@ -1,8 +1,13 @@
+'''
+    
+    Toy dataset generator.
+
+'''
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import truncnorm
 
-def generate_VELO_dataset(nTracks=20, plot=False):
+def generate_dataset(nTracks=20, plot=False):
 
 	detector_planes = [7., 9.]
 
@@ -99,7 +104,7 @@ def generate_VELO_dataset(nTracks=20, plot=False):
 	return data, labels, plotting
 
 
-# generate_VELO_dataset()
+# generate_dataset()
 
 
 
