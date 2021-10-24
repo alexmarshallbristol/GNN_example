@@ -2,46 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import truncnorm
 
-def generate_dataset(number_of_points=10):
-
-	points = np.random.uniform(low=0.0, high=1.0, size=(number_of_points,3))
-
-	labels = np.zeros(number_of_points)
-
-	distance_matrix = np.zeros((number_of_points, number_of_points))
-
-	for idx in range(0, number_of_points):
-		for jdx in range(idx+1, number_of_points):
-
-			distance_matrix[idx][jdx] = np.sqrt((points[idx][0]-points[jdx][0])**2+(points[idx][1]-points[jdx][1])**2)
-
-	where = np.where(distance_matrix==np.amin(distance_matrix[np.nonzero(distance_matrix)]))
-
-	labels[where[0][0]] = 1
-	labels[where[1][0]] = 1
-
-	points[where[0][0]][2] = 1
-	points[where[1][0]][2] = 1
-
-	# print(points, labels)
-	# quit()
-	return points, labels
-
-
-# dataset, labels = generate_dataset(5, number_of_points=10)
-
-
-# dataset_0 = dataset[0]
-# labels_0 = labels[0]
-
-# # All other points...
-# plt.scatter(dataset_0[np.where(labels_0==0)][:,0], dataset_0[np.where(labels_0==0)][:,1], c='tab:blue')
-# plt.scatter(dataset_0[np.where(labels_0==1)][:,0], dataset_0[np.where(labels_0==1)][:,1], c='tab:orange')
-# plt.savefig('test.png',bbox_inches='tight')
-# plt.close('all')
-
-
-
 def generate_VELO_dataset(nTracks=20, plot=False):
 
 	detector_planes = [7., 9.]
@@ -49,8 +9,8 @@ def generate_VELO_dataset(nTracks=20, plot=False):
 	if nTracks < 10:
 		print("Minimum nTracks is",10)
 
-	# nTracks_B = np.random.randint(3, 6) # Between 3 and 6 tracks in the event should be from the B (1 B per event).
-	nTracks_B = 5
+	nTracks_B = np.random.randint(3, 6) # Between 3 and 6 tracks in the event should be from the B (1 B per event).
+	# nTracks_B = 5
 
 	nTracks_PV = nTracks - nTracks_B
 
@@ -62,8 +22,8 @@ def generate_VELO_dataset(nTracks=20, plot=False):
 	eta =  np.random.uniform(low=2., high=5.0, size=1) # LHCb rough acceptance (https://lhcb.web.cern.ch/speakersbureau/html/PerformanceNumbers.html)
 	eta = eta*np.sign(np.random.uniform(-1,1)) # Populate both sides of the beamline
 	theta_dis = 2.*np.arctan(np.exp(-eta)) # rads
-	# x_dis = truncnorm.rvs(-1, 3, size=1)[0]*1.5+2. # Max displacement is 6.5
-	x_dis = truncnorm.rvs(-1, 1, size=1)[0]*0.5+4.5
+	x_dis = truncnorm.rvs(-1, 3, size=1)[0]*1.5+2. # Max displacement is 6.5
+	# x_dis = truncnorm.rvs(-1, 1, size=1)[0]*0.5+4.5
 
 	y_dis = x_dis*np.tan(theta_dis)[0]
 	displaced_vertex = [x_dis,y_dis]
@@ -110,10 +70,8 @@ def generate_VELO_dataset(nTracks=20, plot=False):
 	inputs = np.empty((nTracks, 3))
 	inputs[:,0] = points_at_layers[:,0,1]
 	inputs[:,1] = theta
-	# inputs[:,0] = points_at_layers[:,0,1]
-	# inputs[:,1] = points_at_layers[:,1,1]
 	inputs[:,2] = np.concatenate((np.zeros(nTracks_PV), np.ones(nTracks_B)))
-	# np.random.shuffle(inputs)
+	# np.random.shuffle(inputs) # If you want to shuffle, need to shuffle everything - including plotting
 
 	data = inputs[:,:-1]
 	labels = inputs[:,-1]
@@ -141,7 +99,7 @@ def generate_VELO_dataset(nTracks=20, plot=False):
 	return data, labels, plotting
 
 
-generate_VELO_dataset()
+# generate_VELO_dataset()
 
 
 
