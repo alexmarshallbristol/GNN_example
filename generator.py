@@ -1,0 +1,151 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import truncnorm
+
+def generate_dataset(number_of_points=10):
+
+	points = np.random.uniform(low=0.0, high=1.0, size=(number_of_points,3))
+
+	labels = np.zeros(number_of_points)
+
+	distance_matrix = np.zeros((number_of_points, number_of_points))
+
+	for idx in range(0, number_of_points):
+		for jdx in range(idx+1, number_of_points):
+
+			distance_matrix[idx][jdx] = np.sqrt((points[idx][0]-points[jdx][0])**2+(points[idx][1]-points[jdx][1])**2)
+
+	where = np.where(distance_matrix==np.amin(distance_matrix[np.nonzero(distance_matrix)]))
+
+	labels[where[0][0]] = 1
+	labels[where[1][0]] = 1
+
+	points[where[0][0]][2] = 1
+	points[where[1][0]][2] = 1
+
+	# print(points, labels)
+	# quit()
+	return points, labels
+
+
+# dataset, labels = generate_dataset(5, number_of_points=10)
+
+
+# dataset_0 = dataset[0]
+# labels_0 = labels[0]
+
+# # All other points...
+# plt.scatter(dataset_0[np.where(labels_0==0)][:,0], dataset_0[np.where(labels_0==0)][:,1], c='tab:blue')
+# plt.scatter(dataset_0[np.where(labels_0==1)][:,0], dataset_0[np.where(labels_0==1)][:,1], c='tab:orange')
+# plt.savefig('test.png',bbox_inches='tight')
+# plt.close('all')
+
+
+
+def generate_VELO_dataset(nTracks=20, plot=False):
+
+	detector_planes = [7., 9.]
+
+	if nTracks < 10:
+		print("Minimum nTracks is",10)
+
+	# nTracks_B = np.random.randint(3, 6) # Between 3 and 6 tracks in the event should be from the B (1 B per event).
+	nTracks_B = 5
+
+	nTracks_PV = nTracks - nTracks_B
+
+	if plot:
+		print(nTracks_B, nTracks_PV)
+
+	# eta = -np.log(np.tan(theta/2.)) # Pseudorapidity
+
+	eta =  np.random.uniform(low=2., high=5.0, size=1) # LHCb rough acceptance (https://lhcb.web.cern.ch/speakersbureau/html/PerformanceNumbers.html)
+	eta = eta*np.sign(np.random.uniform(-1,1)) # Populate both sides of the beamline
+	theta_dis = 2.*np.arctan(np.exp(-eta)) # rads
+	# x_dis = truncnorm.rvs(-1, 3, size=1)[0]*1.5+2. # Max displacement is 6.5
+	x_dis = truncnorm.rvs(-1, 1, size=1)[0]*0.5+4.5
+
+	y_dis = x_dis*np.tan(theta_dis)[0]
+	displaced_vertex = [x_dis,y_dis]
+
+	points = np.empty((0,3,2))
+	plot_out_to_x = 13.
+
+	points_at_layers = np.empty((0,3,2))
+
+	for idx in range(nTracks):
+
+
+		eta =  np.random.uniform(low=2., high=5.0, size=1) # LHCb rough acceptance (https://lhcb.web.cern.ch/speakersbureau/html/PerformanceNumbers.html)
+		eta = eta*np.sign(np.random.uniform(-1,1)) # Populate both sides of the beamline
+		theta = 2.*np.arctan(np.exp(-eta)) # rads
+
+		if idx < nTracks_PV:
+
+			# Generate tracks from the PV - primary vertex (0,0)
+
+			x = plot_out_to_x
+			y = x*np.tan(theta)[0]
+			points = np.append(points, [[[0.,0.],[x,y],[0.,0.]]], axis=0)
+
+			points_at_layers = np.append(points_at_layers, [[[detector_planes[0],detector_planes[0]*np.tan(theta)[0]],[detector_planes[1],detector_planes[1]*np.tan(theta)[0]],[0.,0.]]], axis=0)
+
+		else:
+
+			# Generate tracks from the displaced vertex
+
+			x = plot_out_to_x - displaced_vertex[0]
+			y = x*np.tan(theta+theta_dis)[0]
+			points = np.append(points, [[[displaced_vertex[0],displaced_vertex[1]],[x+displaced_vertex[0],y+displaced_vertex[1]],[1.,1.]]], axis=0)
+
+			values_A = (detector_planes[0] - displaced_vertex[0])*np.tan(theta+theta_dis)[0]+displaced_vertex[1]
+			values_B = (detector_planes[1] - displaced_vertex[0])*np.tan(theta+theta_dis)[0]+displaced_vertex[1]
+			values = [[[detector_planes[0], values_A],[detector_planes[1], values_B],[1.,1.]]]
+			points_at_layers = np.append(points_at_layers, values, axis=0)
+
+
+	diff_x = detector_planes[1]-detector_planes[0]
+	diff_y = points_at_layers[:,0,1] - points_at_layers[:,1,1] 
+	theta = np.arctan(diff_y/(np.ones(np.shape(diff_y))*diff_x))
+	inputs = np.empty((nTracks, 3))
+	inputs[:,0] = points_at_layers[:,0,1]
+	inputs[:,1] = theta
+	# inputs[:,0] = points_at_layers[:,0,1]
+	# inputs[:,1] = points_at_layers[:,1,1]
+	inputs[:,2] = np.concatenate((np.zeros(nTracks_PV), np.ones(nTracks_B)))
+	# np.random.shuffle(inputs)
+
+	data = inputs[:,:-1]
+	labels = inputs[:,-1]
+
+	if plot:
+		for idx in range(nTracks):		
+			if idx < nTracks_PV:
+				plt.plot(points[idx,:,0],points[idx,:,1],color='tab:blue',alpha=0.25)
+				plt.scatter(points_at_layers[idx,:,0],points_at_layers[idx,:,1],alpha=0.25,color='k', marker='x')
+			else:
+				plt.plot(points[idx,:,0],points[idx,:,1],color='tab:red')
+				plt.scatter(points_at_layers[idx,:,0],points_at_layers[idx,:,1],alpha=1.,color='k', marker='x')
+
+		plt.xlim(-1.5,10)
+		plt.ylim(-3,3)
+		plt.axhline(y=0,c='k',alpha=0.1)
+		plt.axvline(x=0, c='k',alpha=0.1)
+		plt.axvline(x=7, c='k',alpha=1)
+		plt.axvline(x=9, c='k',alpha=1)
+		plt.show()
+
+
+	plotting = [points, points_at_layers]
+
+	return data, labels, plotting
+
+
+generate_VELO_dataset()
+
+
+
+
+
+
+
