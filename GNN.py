@@ -15,6 +15,7 @@ from tensorflow.keras.optimizers import Adam
 
 from spektral.data import Dataset, DisjointLoader, Graph
 from spektral.layers import GCSConv
+from spektral.layers import GlobalAvgPool
 from spektral.transforms.normalize_adj import NormalizeAdj
 
 from generator import generate_dataset
@@ -44,7 +45,7 @@ class getDataset(Dataset):
 
         return [make_graph() for _ in range(self.n_samples)]
 
-class MyFirstGNN(Model):
+class GNN(Model):
 
     def __init__(self, n_hidden, n_labels):
         super().__init__()
@@ -52,42 +53,67 @@ class MyFirstGNN(Model):
         self.graph_conv2 = GCSConv(n_hidden)
         self.graph_conv3 = GCSConv(n_hidden)
         self.leaky = LeakyReLU(alpha=0.2)
-        self.dense = Dense(n_labels, 'tanh')
+        self.dense = Dense(n_labels, 'softmax')
+        self.dense2 = Dense(2, 'tanh')
+        self.pool = GlobalAvgPool()
 
     def call(self, inputs):
         x, a, i = inputs
         H = self.graph_conv1([x,a])
         H = self.leaky(H)
+
         H = self.graph_conv2([H,a])
         H = self.leaky(H)
+
         H = self.graph_conv3([H,a])
         H = self.leaky(H)
-        out = self.dense(H)
 
-        return out
+        classes = self.dense(H)
+
+        H = self.pool([x,i])
+        origin = self.dense2(H)
+        
+        return classes, origin
 
 @tf.function(experimental_relax_shapes=True)
 def train(inputs, target):
     with tf.GradientTape(persistent=True) as tape:
-        predictions = model(inputs, training=True)
-        loss = loss_fn(target, predictions) + sum(model.losses)
+        x, a, i = inputs
+        predictions, predictions_origin = model(inputs,training=True)
+
+        classes_target = target[:,2]
+        origin_target = target[:,:2]
+
+        # Bodge job of obtaining labels for the origin vertex. Unclear how to save mulitple different shaped label ojects in spektral - so this is a real fudge.
+        i += 1
+        i_plus = i - tf.roll(i, shift=-1, axis=0)
+        i_plus = tf.cast(i_plus,'float64')
+        origin_target = tf.squeeze(origin_target)
+        i_plus = tf.squeeze(i_plus)
+        i_plus = tf.expand_dims(i_plus,axis=1)
+        origin_target = tf.concat([origin_target,i_plus],axis=1)
+        origin_target = tf.gather(origin_target, tf.where((origin_target[:,2]!=0))[:, 0])[:,:2]
+
+        loss = loss_scc(classes_target, predictions) + 10.*loss_mse(origin_target, predictions_origin) + sum(model.losses)
+
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss, predictions, target
+
+    return loss
 
 @tf.function(experimental_relax_shapes=True)
 def query(inputs, target):
     with tf.GradientTape(persistent=True) as tape:
         x, a, i = inputs
-        predictions = model([x,a,i], training=False)
-    return predictions, target
+        predictions, predictions_origin = model([x,a,i], training=False)
+    return predictions, predictions_origin, target
 
 
 # Create the network
-optimizer = Adam(lr=1e-2)
-# loss_fn = SparseCategoricalCrossentropy()
-loss_fn = MeanSquaredError()
-model = MyFirstGNN(32, 2) # 2 categories if SparseCategoricalCrossentropy
+optimizer = Adam(lr=1e-2, beta_1=0.5, decay=0, amsgrad=True)
+loss_scc = SparseCategoricalCrossentropy()
+loss_mse = MeanSquaredError()
+model = GNN(32, 2) # 2 categories if SparseCategoricalCrossentropy
 model.compile()
 
 # Create the dataset
@@ -101,7 +127,8 @@ losses = np.empty(0)
 # Enter training loop
 for idx, batch in enumerate(loader):
 
-    A, B, C = train(*batch)
+    A = train(*batch)
+
     losses = np.append(losses,A.numpy())
 
     if idx % 500 == 0: print(idx)
@@ -109,13 +136,10 @@ for idx, batch in enumerate(loader):
     # Saving...
     if idx % save_idx == 0:
 
-        print(B, C)
-        # continue
-
-        if idx == 0: continue
-
         print('Saving...')
         print(idx,'loss:',A.numpy())
+
+        if idx == 0: continue
 
         plt.plot(losses)
         plt.xlabel('step')
@@ -136,12 +160,14 @@ for idx, batch in enumerate(loader):
             if jdx == nTests:
                 break
 
-            predictions, plotting = query(*plotBatch)
+            predictions, predictions_origin, plotting = query(*plotBatch)
 
-            predictions = predictions.numpy()
+            predictions = predictions.numpy()[:,1] # Only need the 2nd column of values - these values represent the probablity of track being in class 1
+            predictions_origin = predictions_origin.numpy()[0]
 
-            predictions[:,0] = predictions[:,0]*6.
-            predictions[:,1] = (predictions[:,1] - 0.5)*4.
+            # Post-processing step - convert x and y NN outputs back to physical values...
+            predictions_origin[0] = predictions_origin[0]*6.
+            predictions_origin[1] = (predictions_origin[1] - 0.5)*4.
 
             plotting = plotting.numpy()[0]
 
@@ -171,14 +197,15 @@ for idx, batch in enumerate(loader):
             ax = plt.subplot(nTests,4,jdx*2+2)
             plt.title('GNN',color='tab:orange')
             for kdx in range(np.shape(points)[0]):   
-                if predictions[kdx][0] < 0.1 and predictions[kdx][1] < 0.1:
+                if predictions[kdx] < 0.5:
                     plt.plot(points[kdx,:-1,0],points[kdx,:-1,1],color='tab:blue',alpha=0.25)
                     plt.scatter(points_at_layers[kdx,:-1,0],points_at_layers[kdx,:-1,1],alpha=0.25,color='k', marker='x')
                 else:
                     plt.plot(points[kdx,:-1,0],points[kdx,:-1,1],color='tab:red')
                     plt.scatter(points_at_layers[kdx,:-1,0],points_at_layers[kdx,:-1,1],alpha=1.,color='k', marker='x')
-                    plt.scatter(predictions[kdx][0],predictions[kdx][1],alpha=1.,color='tab:red', marker='x',s=50)
                     nTracks[2] += 1
+            
+            plt.scatter(predictions_origin[0],predictions_origin[1],alpha=1.,color='tab:red', marker='x',s=100)
 
             plt.text(0.05, 0.15, 'nTracks: %d'%nTracks[0], horizontalalignment='left', verticalalignment='bottom', transform=ax.transAxes)
             plt.text(0.05, 0.1, 'nTracks signal (truth): %d'%nTracks[1], horizontalalignment='left', verticalalignment='bottom', transform=ax.transAxes)

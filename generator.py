@@ -74,21 +74,25 @@ def generate_dataset(nTracks=20, plot=False):
 	diff_x = detector_planes[1]-detector_planes[0]
 	diff_y = points_at_layers[:,0,1] - points_at_layers[:,1,1] 
 	theta = np.arctan(diff_y/(np.ones(np.shape(diff_y))*diff_x))
-	inputs = np.empty((nTracks, 4))
+	inputs = np.empty((nTracks, 5))
 	inputs[:,0] = points_at_layers[:,0,1]
 	inputs[:,1] = theta
 
+	# Pre process. Normalise values to between 0 and 1, in accordance with tanh activation layer at end of NN.
 	origin[:,0] = origin[:,0]/6.
 	origin[:,1] = origin[:,1]/4.+0.5
 
 	inputs[:,2] = origin[:,0]
 	inputs[:,3] = origin[:,1]
 
-	# inputs[:,2] = np.concatenate((np.zeros(nTracks_PV), np.ones(nTracks_B)))
+	inputs[:,4] = np.concatenate((np.zeros(nTracks_PV), np.ones(nTracks_B)))
+
+	# [y coords, angle rads, pre processed x coord of origin, pre processed y coord of origin,, class labels]
+
 	# np.random.shuffle(inputs) # If you want to shuffle, need to shuffle everything - including plotting
 
-	data = inputs[:,:-2]
-	labels = inputs[:,-2:]
+	data = inputs[:,:-3]
+	labels = inputs[:,-3:]
 
 	if plot:
 		for idx in range(nTracks):		
