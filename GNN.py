@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, LeakyReLU
-from tensorflow.keras.losses import SparseCategoricalCrossentropy
+from tensorflow.keras.losses import SparseCategoricalCrossentropy, MeanSquaredError
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 
@@ -50,12 +50,17 @@ class MyFirstGNN(Model):
         super().__init__()
         self.graph_conv1 = GCSConv(n_hidden)
         self.graph_conv2 = GCSConv(n_hidden)
+        self.graph_conv3 = GCSConv(n_hidden)
         self.leaky = LeakyReLU(alpha=0.2)
-        self.dense = Dense(n_labels, 'softmax')
+        self.dense = Dense(n_labels, 'tanh')
 
     def call(self, inputs):
         x, a, i = inputs
         H = self.graph_conv1([x,a])
+        H = self.leaky(H)
+        H = self.graph_conv2([H,a])
+        H = self.leaky(H)
+        H = self.graph_conv3([H,a])
         H = self.leaky(H)
         out = self.dense(H)
 
@@ -68,7 +73,7 @@ def train(inputs, target):
         loss = loss_fn(target, predictions) + sum(model.losses)
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss
+    return loss, predictions, target
 
 @tf.function(experimental_relax_shapes=True)
 def query(inputs, target):
@@ -80,12 +85,13 @@ def query(inputs, target):
 
 # Create the network
 optimizer = Adam(lr=1e-2)
-loss_fn = SparseCategoricalCrossentropy()
+# loss_fn = SparseCategoricalCrossentropy()
+loss_fn = MeanSquaredError()
 model = MyFirstGNN(32, 2) # 2 categories if SparseCategoricalCrossentropy
 model.compile()
 
 # Create the dataset
-dataset = getDataset(2500, transforms=NormalizeAdj())
+dataset = getDataset(25000, transforms=NormalizeAdj())
 loader = DisjointLoader(dataset, batch_size=50, node_level=True)
 
 
@@ -95,7 +101,7 @@ losses = np.empty(0)
 # Enter training loop
 for idx, batch in enumerate(loader):
 
-    A = train(*batch)
+    A, B, C = train(*batch)
     losses = np.append(losses,A.numpy())
 
     if idx % 500 == 0: print(idx)
@@ -103,10 +109,13 @@ for idx, batch in enumerate(loader):
     # Saving...
     if idx % save_idx == 0:
 
-        print('Saving...')
-        print(idx,'loss:',A.numpy())
+        print(B, C)
+        # continue
 
         if idx == 0: continue
+
+        print('Saving...')
+        print(idx,'loss:',A.numpy())
 
         plt.plot(losses)
         plt.xlabel('step')
@@ -129,7 +138,11 @@ for idx, batch in enumerate(loader):
 
             predictions, plotting = query(*plotBatch)
 
-            predictions = predictions.numpy()[:,1]
+            predictions = predictions.numpy()
+
+            predictions[:,0] = predictions[:,0]*6.
+            predictions[:,1] = (predictions[:,1] - 0.5)*4.
+
             plotting = plotting.numpy()[0]
 
             points = plotting[0]
@@ -158,12 +171,13 @@ for idx, batch in enumerate(loader):
             ax = plt.subplot(nTests,4,jdx*2+2)
             plt.title('GNN',color='tab:orange')
             for kdx in range(np.shape(points)[0]):   
-                if predictions[kdx] < 0.5:
+                if predictions[kdx][0] < 0.1 and predictions[kdx][1] < 0.1:
                     plt.plot(points[kdx,:-1,0],points[kdx,:-1,1],color='tab:blue',alpha=0.25)
                     plt.scatter(points_at_layers[kdx,:-1,0],points_at_layers[kdx,:-1,1],alpha=0.25,color='k', marker='x')
                 else:
                     plt.plot(points[kdx,:-1,0],points[kdx,:-1,1],color='tab:red')
                     plt.scatter(points_at_layers[kdx,:-1,0],points_at_layers[kdx,:-1,1],alpha=1.,color='k', marker='x')
+                    plt.scatter(predictions[kdx][0],predictions[kdx][1],alpha=1.,color='tab:red', marker='x',s=50)
                     nTracks[2] += 1
 
             plt.text(0.05, 0.15, 'nTracks: %d'%nTracks[0], horizontalalignment='left', verticalalignment='bottom', transform=ax.transAxes)

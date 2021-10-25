@@ -38,6 +38,8 @@ def generate_dataset(nTracks=20, plot=False):
 
 	points_at_layers = np.empty((0,3,2))
 
+	origin = np.empty((0,2))
+
 	for idx in range(nTracks):
 
 
@@ -52,9 +54,9 @@ def generate_dataset(nTracks=20, plot=False):
 			x = plot_out_to_x
 			y = x*np.tan(theta)[0]
 			points = np.append(points, [[[0.,0.],[x,y],[0.,0.]]], axis=0)
-
-			points_at_layers = np.append(points_at_layers, [[[detector_planes[0],detector_planes[0]*np.tan(theta)[0]],[detector_planes[1],detector_planes[1]*np.tan(theta)[0]],[0.,0.]]], axis=0)
-
+			values = [[[detector_planes[0],detector_planes[0]*np.tan(theta)[0]],[detector_planes[1],detector_planes[1]*np.tan(theta)[0]],[0.,0.]]]
+			points_at_layers = np.append(points_at_layers, values, axis=0)
+			origin = np.append(origin, [[0.,0.]], axis=0)
 		else:
 
 			# Generate tracks from the displaced vertex
@@ -67,19 +69,26 @@ def generate_dataset(nTracks=20, plot=False):
 			values_B = (detector_planes[1] - displaced_vertex[0])*np.tan(theta+theta_dis)[0]+displaced_vertex[1]
 			values = [[[detector_planes[0], values_A],[detector_planes[1], values_B],[1.,1.]]]
 			points_at_layers = np.append(points_at_layers, values, axis=0)
-
+			origin = np.append(origin, [displaced_vertex], axis=0)
 
 	diff_x = detector_planes[1]-detector_planes[0]
 	diff_y = points_at_layers[:,0,1] - points_at_layers[:,1,1] 
 	theta = np.arctan(diff_y/(np.ones(np.shape(diff_y))*diff_x))
-	inputs = np.empty((nTracks, 3))
+	inputs = np.empty((nTracks, 4))
 	inputs[:,0] = points_at_layers[:,0,1]
 	inputs[:,1] = theta
-	inputs[:,2] = np.concatenate((np.zeros(nTracks_PV), np.ones(nTracks_B)))
+
+	origin[:,0] = origin[:,0]/6.
+	origin[:,1] = origin[:,1]/4.+0.5
+
+	inputs[:,2] = origin[:,0]
+	inputs[:,3] = origin[:,1]
+
+	# inputs[:,2] = np.concatenate((np.zeros(nTracks_PV), np.ones(nTracks_B)))
 	# np.random.shuffle(inputs) # If you want to shuffle, need to shuffle everything - including plotting
 
-	data = inputs[:,:-1]
-	labels = inputs[:,-1]
+	data = inputs[:,:-2]
+	labels = inputs[:,-2:]
 
 	if plot:
 		for idx in range(nTracks):		
