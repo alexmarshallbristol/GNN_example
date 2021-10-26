@@ -31,14 +31,10 @@ rm -f miniconda.sh
 conda update conda -y
 conda update pip -y
 ```
-* Add the following to your bashrc file (file that gets called everytime you login to DICE). 
-```
-export PATH=/software/$USER/miniconda/bin:$PATH
-```
-* You can use nano to edit the file. (crtl-x, y, enter) to close and save.
+* Add the following to your bashrc file (file that gets called everytime you login to DICE). You can use nano to edit the file. (crtl-x, y, enter) to close and save.
 ```
 nano ~/.bashrc
-```
+export PATH=/software/$USER/miniconda/bin:$PATH
 * Then source .bashrc with
 ```
 source ~/.bashrc
@@ -111,14 +107,14 @@ source source.sh
 * In you IPU working directory clone this repository
 ```
 cd ~/IPU/
-git clone git@github.com:alexmarshallbristol/GNN_example.git
+git clone https://github.com/alexmarshallbristol/GNN_example.git
 ```
 * Run the code
 ```
 python GNN.py
 ```
 
-Cheers
+Cheers :smiley:
 
 
 
