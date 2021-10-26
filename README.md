@@ -37,6 +37,8 @@ nano ~/.bashrc
 export PATH=/software/$USER/miniconda/bin:$PATH
 * Then source .bashrc with
 ```
+* source bashrc file
+```
 source ~/.bashrc
 ```
 * Check conda is installed, the following should return a file path. For example "/software/USER/miniconda/bin/conda"
