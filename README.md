@@ -11,7 +11,50 @@ The implementation is far from perfect, clearest example is the handeling of the
 ![plot](example/example.png)
 
 
-## Setting up
+
+## Setting up on BC4
+
+Note, could be gaps in this setup procedure. 
+
+### Step 1: obtain BlueCrystal account and login
+
+* Login with
+```
+ssh USER@bc4login.acrc.bris.ac.uk
+```
+### Step 2: Source tensorflow and install spektral
+
+* Source the pre-installed version of tensorflow 
+```
+module load languages/anaconda3/2020.02-tflow-2.2.0 
+```
+* Install spektral library
+```
+pip install --user spektral
+```
+* Check all is correctly installed with 
+```
+python -c "import spektral; print(spektral.__version__)"
+```
+* It should automatically installed the most up to date version ()
+* Clone example code
+```
+mkdir ~/IPU
+cd ~/IPU
+git clone https://github.com/alexmarshallbristol/GNN_example.git
+```
+* Run the code
+```
+python GNN.py
+```
+
+*Some warnings may be displayed "<function train at 0x2b784fe70170> triggered tf.function retracing. Tracing is expensive and the excessive number of tracings is likely due to passing python objects instead of tensors.". These warnings were did not appear when I was writing this example in TF 2.4. Here we have called a slightly different version of TF "python -c "import tensorflow; print(tensorflow.__version__)"". For now it is probably safe to ignore these warnings.*
+
+Cheers :smiley:
+
+
+
+## Setting up on gc00
 
 Note, could be gaps in this setup procedure. 
 
