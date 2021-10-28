@@ -9,6 +9,9 @@ from scipy.stats import truncnorm
 
 def generate_dataset(nTracks=20, plot=False):
 
+	# Code to generate a random number of particle tracks randomly in a cone from (0,0). 1 particle decays after a distance x_dis, and decays to a random number of daughters from this displaced vertex.
+	# There are two detector planes, these are used to compute a position and a track angle at the first plane. These, along with displaced vertex position and class labels are fed to the network.
+
 	detector_planes = [7., 9.]
 
 	if nTracks < 10:

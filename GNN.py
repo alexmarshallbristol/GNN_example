@@ -33,13 +33,13 @@ class getDataset(Dataset):
         def make_graph():
             n = np.random.randint(self.n_min, self.n_max)
 
-            x, y, _bin = generate_dataset(n)
+            x, y, plotting_information = generate_dataset(n)
 
             a = np.ones((np.shape(y)[0],np.shape(y)[0])).astype('int')
             a = sp.csr_matrix(a)
 
             if self.plotting:
-                return Graph(x=x, a=a, y=_bin)
+                return Graph(x=x, a=a, y=plotting_information)
             else:
                 return Graph(x=x, a=a, y=y)
 
@@ -47,14 +47,14 @@ class getDataset(Dataset):
 
 class GNN(Model):
 
-    def __init__(self, n_hidden, n_labels):
+    def __init__(self, n_hidden, n_class_labels=2, n_dimensions=2):
         super().__init__()
-        self.graph_conv1 = GCSConv(n_hidden)
+        self.graph_conv1 = GCSConv(n_hidden) # No idea if this is the best layer to use
         self.graph_conv2 = GCSConv(n_hidden)
         self.graph_conv3 = GCSConv(n_hidden)
         self.leaky = LeakyReLU(alpha=0.2)
-        self.dense = Dense(n_labels, 'softmax')
-        self.dense2 = Dense(2, 'tanh')
+        self.dense = Dense(n_class_labels, 'softmax') 
+        self.dense2 = Dense(n_dimensions, 'tanh') # Activation functions
         self.pool = GlobalAvgPool()
 
     def call(self, inputs):
@@ -68,8 +68,12 @@ class GNN(Model):
         H = self.graph_conv3([H,a])
         H = self.leaky(H)
 
+        # Graph splits into two here:
+
+        # First arm does the classification task - for each node
         classes = self.dense(H)
 
+        # Second arm does the regression task - pooling information from the whole graph
         H = self.pool([x,i])
         origin = self.dense2(H)
         
@@ -94,7 +98,7 @@ def train(inputs, target):
         origin_target = tf.concat([origin_target,i_plus],axis=1)
         origin_target = tf.gather(origin_target, tf.where((origin_target[:,2]!=0))[:, 0])[:,:2]
 
-        loss = loss_scc(classes_target, predictions) + 10.*loss_mse(origin_target, predictions_origin) + sum(model.losses)
+        loss = loss_scc(classes_target, predictions) + 10.*loss_mse(origin_target, predictions_origin) + sum(model.losses) # Sum of losses, here I have enhanced the MSE loss by a factor of 10.
 
     gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
@@ -113,7 +117,7 @@ def query(inputs, target):
 optimizer = Adam(lr=1e-2, beta_1=0.5, decay=0, amsgrad=True)
 loss_scc = SparseCategoricalCrossentropy()
 loss_mse = MeanSquaredError()
-model = GNN(32, 2) # 2 categories if SparseCategoricalCrossentropy
+model = GNN(32, n_class_labels=2, n_dimensions=2) # 2 categories for SparseCategoricalCrossentropy, 2 dimensions for the regression task
 model.compile()
 
 # Create the dataset
@@ -151,6 +155,8 @@ for idx, batch in enumerate(loader):
         print('Plot a test...')
         nTests = 6
         plt.figure(figsize=(16,nTests*4))
+
+        # Bit of a bodge job on the plotting here. Setting plotting=True returns plotting information intead of class labels from getDataset()
 
         dataset_plotting = getDataset(nTests, plotting=True, transforms=NormalizeAdj())
         loader_plotting = DisjointLoader(dataset_plotting, batch_size=1)

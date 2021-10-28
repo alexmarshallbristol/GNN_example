@@ -6,6 +6,11 @@ The network performs two tasks: classifying tracks into signal (red), and backgr
 
 The implementation is far from perfect, clearest example is the handeling of the two sets of labels. The network is not at all optimised, this is just the first architecture that kinda worked.
 
+Network code is all in GNN.py.
+
+Code to generate toys is in generator.py. This code gets called from GNN.py. 
+
+
 ## Example output
 
 ![plot](example/example.png)
@@ -36,7 +41,7 @@ pip install --user spektral
 ```
 python -c "import spektral; print(spektral.__version__)"
 ```
-* It should automatically installed the most up to date version ()
+* It should automatically installed the most up to date version (1.0.8 probably)
 * Clone example code
 ```
 mkdir ~/IPU
